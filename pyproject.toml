@@ -1,0 +1,13 @@
+[project]
+name = "4d26219ea4defec84ed3996428b7f84c9ee44945df7ad23de864a3ac802e75a6-ragmodel"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "datasets>=4.0.0",
+    "joblib>=1.5.1",
+    "pandas>=2.3.1",
+    "pre-commit>=4.2.0",
+    "scikit-learn>=1.7.0",
+]
