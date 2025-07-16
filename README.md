@@ -78,8 +78,13 @@ python -m pytest --cov=src
 
 # Run specific test file
 python -m pytest tests/test_data.py
-```
 
+# Run tests with coverage report
+python -m pytest --cov=src
+
+# Run tests with detailed coverage report showing missing lines
+python -m pytest --cov=src --cov-report=term-missing
+```
 ### Test Structure
 
 - `tests/test_data.py`: Tests for data preprocessing functionality
@@ -101,7 +106,7 @@ python -m pytest tests/test_data.py
 - `src/evaluation.py`: Model evaluation and metrics calculation
 - `src/run_pipeline.py`: Main pipeline orchestration
 
-### Key Improvements
+### Key Implementations
 
 1. **Configuration Management**: All settings centralized in `config.py`
 2. **Logging**: Structured logging with file and console output
@@ -182,10 +187,10 @@ The pipeline includes comprehensive error handling:
 
 Building this improved pipeline taught me several key lessons:
 
-1. **Testing is Essential**: Comprehensive tests catch issues early and make refactoring safer
-2. **Configuration Management**: Centralizing configuration makes the code more maintainable
-3. **Logging vs Print**: Proper logging provides better debugging and monitoring capabilities
-4. **Error Handling**: Explicit error handling makes the pipeline more robust
-5. **Pre-commit Hooks**: Automated quality checks prevent issues from reaching the repository
-
-The modular design makes it easy to extend the pipeline with new features, different models, or additional data sources. The testing framework ensures that changes don't break existing functionality.
+1. **Read the requirements**: You may have noticed that this repo says RAG model when it is not a RAG model. That's because I initially thought I could just adapt a portion of our capstone project for this homework to hit two birds with one stone. I even thought it would be doing testing also for our capstone. Only when I read the actual requirements did I realize that I actually had to use a classical ML model for submission, hence this mishmash to hastily readapt my existing code.
+2. **Testing is Essential**: Comprehensive tests catch issues early and make refactoring safer, especially when identify what edge cases or branches you haven't looked too hard into.
+3. **Configuration Management**: Centralizing configuration makes the code more maintainable, and will make it easier to pass these to differing modules.
+4. **Logging vs Print**: Proper logging provides better debugging and monitoring capabilities, especially when the pipeline isn't always idempotent.
+5. **Error Handling**: Explicit error handling makes the pipeline more robust
+6. **Pre-commit Hooks**: Automated quality checks prevent issues from reaching the repository and running the pytest would prevent you from submitting bad code.
+7. **Modular design**: Breaking things to module helps it easier to keep track of dependencies and avoid a really large monolithic structure codebase. Also helps with using LLMs in debugging and doing quick iterations.

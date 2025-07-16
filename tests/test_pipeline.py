@@ -147,3 +147,15 @@ def test_pipeline_with_logging():
         except Exception:
             # If log file doesn't exist or is empty, that's okay for test
             pass
+
+
+def test_pipeline_exception_handling():
+    """Test pipeline exception handling."""
+    from unittest.mock import patch
+
+    with patch("src.run_pipeline.download_raw_data") as mock_download:
+        with patch("src.run_pipeline.setup_logging"):
+            mock_download.side_effect = Exception("Test exception")
+
+            with pytest.raises(Exception, match="Test exception"):
+                main()
