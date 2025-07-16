@@ -4,7 +4,7 @@ This project is for Homework 1 of the MLOPS2025B course. It builds a complete, p
 
 ## Project Overview
 
-The goal is to classify news headlines from the AG News dataset into one of four categories: World, Sports, Business, or Sci/Tech. This is a classic multi-class text classification problem. I chose this dataset because it's a standard benchmark, easy to access programmatically via the `datasets` library, and fits the size constraints of the assignment (<100MB). This allows me to focus on building a robust MLOps pipeline rather than complex data engineering.
+The goal is to classify news headlines from the AG News dataset into one of four categories: World, Sports, Business, or Sci/Tech. This is a  multi-class text classification problem. I chose this dataset because it's a standard benchmark (and was supposed to be used in a RAG pipeline), easy to access programmatically via the `datasets` library, and fits the size constraints of the assignment (<100MB). This allows me to focus on building a robust MLOps pipeline rather than complex data engineering.
 
 ## Key Features
 
@@ -193,4 +193,4 @@ Building this improved pipeline taught me several key lessons:
 4. **Logging vs Print**: Proper logging provides better debugging and monitoring capabilities, especially when the pipeline isn't always idempotent.
 5. **Error Handling**: Explicit error handling makes the pipeline more robust
 6. **Pre-commit Hooks**: Automated quality checks prevent issues from reaching the repository and running the pytest would prevent you from submitting bad code.
-7. **Modular design**: Breaking things to module helps it easier to keep track of dependencies and avoid a really large monolithic structure codebase. Also helps with using LLMs in debugging and doing quick iterations.
+7. **Modular design**: Breaking things to modules helps it easier to keep track of dependencies and avoid a really large monolithic structure codebase. It allso helps with using LLMs in debugging and doing quick iterations as this makes the code fit within the context window.
