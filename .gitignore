@@ -135,7 +135,9 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+.env.local
+.env.production
+.env.*.local
 .envrc
 .venv
 env/
@@ -205,3 +207,96 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ================================
+# Docker & Airflow Specific
+# ================================
+
+# Docker volumes and persistent data
+postgres-db-volume/
+redis-data/
+
+# Airflow logs and runtime files
+deploy/airflow/logs/*
+!deploy/airflow/logs/.gitkeep
+airflow-*.pid
+airflow-*.err
+airflow-*.out
+
+# Airflow temporary and cache files
+.airflowignore
+airflow_local_settings.py
+unittests.cfg
+airflow.db
+airflow.cfg.backup
+
+# Docker Compose override files (for local development)
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Environment files with secrets
+.env.local
+.env.production
+.env.*.local
+
+# ================================
+# ML Pipeline Specific
+# ================================
+
+# Generated data files (large datasets)
+data/raw/*.csv
+data/raw/*.json
+data/raw/*.parquet
+data/processed/*.csv
+data/processed/*.json
+data/processed/*.parquet
+
+# Trained models (can be large)
+models/*.pkl
+models/*.joblib
+models/*.h5
+models/*.onnx
+models/*.pt
+models/*.pth
+
+# Model artifacts and checkpoints
+models/checkpoints/
+models/artifacts/
+
+# Reports and outputs
+reports/*.txt
+reports/*.html
+reports/*.pdf
+reports/*.png
+reports/*.jpg
+
+# Pipeline logs
+pipeline.log
+
+# Temporary files from pipeline runs
+temp/
+tmp/
+.tmp/
+
+# Vector stores and embeddings
+vector_store/
+embeddings/
+*.faiss
+*.index
+
+# Experiment tracking
+mlruns/
+.mlflow/
+wandb/
+
+# ================================
+# Keep Structure Files
+# ================================
+
+# Keep directory structure with .gitkeep files
+!data/.gitkeep
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!models/.gitkeep
+!reports/.gitkeep
+!deploy/airflow/logs/.gitkeep

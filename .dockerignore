@@ -1,0 +1,80 @@
+# Docker ignore file to optimize build context and image size
+
+# Version control
+.git/
+.gitignore
+
+# Python cache and virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+pipeline.log
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Raw data (can be large - mount as volume instead)
+data/raw/
+data/processed/
+vector_store/
+
+# Pre-trained models (mount as volume for persistence)
+models/
+reports/
+
+# Pre-commit and linting
+.pre-commit-config.yaml
+.ruff_cache/
+
+# Test files (not needed in production container)
+tests/
+test_*.py
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Development specific files
+.python-version
+*.prof

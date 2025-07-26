@@ -1,0 +1,2 @@
+# This file ensures the Airflow logs directory structure is preserved in git
+# while ignoring the actual log files which can be large and contain sensitive information

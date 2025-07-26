@@ -17,6 +17,8 @@ def sample_training_data():
     return X_train, y_train
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_train_model_saves_model(sample_training_data):
     """Test that model training saves the model correctly."""
     X_train, y_train = sample_training_data
@@ -44,6 +46,8 @@ def test_train_model_saves_model(sample_training_data):
         os.remove(config.model_path)
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_train_model_loads_correctly(sample_training_data):
     """Test that the saved model can be loaded and used."""
     X_train, y_train = sample_training_data
@@ -72,6 +76,8 @@ def test_train_model_loads_correctly(sample_training_data):
         os.remove(config.model_path)
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_train_model_with_invalid_data():
     """Test that model training handles invalid data appropriately."""
     # Test with empty data

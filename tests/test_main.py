@@ -1,7 +1,7 @@
 """
-Test module for main.py functionality.
+Test module for main.py functionality in a Docker setup.
 
-This module contains tests for the main entry point of the RAG Model project.
+Covers the main entry point of the RAG Model project.
 """
 
 import pytest
@@ -9,37 +9,60 @@ from unittest.mock import patch
 import sys
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-import main
+@pytest.fixture(scope="module", autouse=True)
+def ensure_src_in_syspath():
+    """Ensure src/ is in sys.path for imports."""
+    src_path = str(Path(__file__).parent.parent / "src")
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+    yield
+    # Optional: sys.path.remove(src_path) after tests, if you want to clean up
 
 
 class TestMain:
-    """Test class for main.py functionality."""
+    """Tests for main.py functionality."""
 
-    @patch("main.run_pipeline")
-    def test_main_success(self, mock_run_pipeline):
+    @pytest.mark.unit
+    @pytest.mark.fast
+    def test_main_success(self):
         """Test successful pipeline execution."""
-        mock_run_pipeline.return_value = None
+        # Patch before importing to catch the import-time binding
+        with patch("src.run_pipeline.main") as mock_run_pipeline:
+            mock_run_pipeline.return_value = None
 
-        # Capture print output
-        with patch("builtins.print") as mock_print:
-            main.main()
+            # Clear any cached import
+            if "main" in sys.modules:
+                del sys.modules["main"]
 
-        mock_run_pipeline.assert_called_once()
-        mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
-        mock_print.assert_any_call("ML Pipeline completed successfully!")
+            import main
 
-    @patch("main.run_pipeline")
-    def test_main_with_exception(self, mock_run_pipeline):
-        """Test pipeline execution with exception."""
-        test_error = Exception("Test pipeline error")
-        mock_run_pipeline.side_effect = test_error
-
-        with patch("builtins.print") as mock_print:
-            with pytest.raises(Exception, match="Test pipeline error"):
+            with patch("builtins.print") as mock_print:
                 main.main()
 
-        mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
-        mock_print.assert_any_call("ML Pipeline failed with error: Test pipeline error")
+            mock_run_pipeline.assert_called_once()
+            mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
+            mock_print.assert_any_call("ML Pipeline completed successfully!")
+
+    @pytest.mark.unit
+    @pytest.mark.fast
+    def test_main_with_exception(self):
+        """Test pipeline execution with exception."""
+        # Patch before importing to catch the import-time binding
+        with patch("src.run_pipeline.main") as mock_run_pipeline:
+            mock_run_pipeline.side_effect = Exception("Test pipeline error")
+
+            # Clear any cached import
+            if "main" in sys.modules:
+                del sys.modules["main"]
+
+            import main
+
+            with patch("builtins.print") as mock_print:
+                with pytest.raises(Exception, match="Test pipeline error"):
+                    main.main()
+
+            mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
+            mock_print.assert_any_call(
+                "ML Pipeline failed with error: Test pipeline error"
+            )

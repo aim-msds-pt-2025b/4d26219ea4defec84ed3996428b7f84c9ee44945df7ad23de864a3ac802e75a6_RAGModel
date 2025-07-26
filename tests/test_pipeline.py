@@ -42,6 +42,8 @@ def mock_ag_news_data():
     return data
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_full_pipeline_integration(mock_ag_news_data):
     """Test that the complete pipeline runs without errors."""
     # Mock the dataset loading to avoid actual downloads
@@ -98,6 +100,8 @@ def test_full_pipeline_integration(mock_ag_news_data):
                 os.remove(file_path)
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_pipeline_with_logging():
     """Test that the pipeline produces log output."""
     with patch("src.download_data.load_dataset") as mock_load_dataset:
@@ -149,6 +153,8 @@ def test_pipeline_with_logging():
             pass
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_pipeline_exception_handling():
     """Test pipeline exception handling."""
     from unittest.mock import patch
