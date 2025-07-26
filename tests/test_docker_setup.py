@@ -144,14 +144,14 @@ class TestAirflowSetup:
     @pytest.mark.fast
     def test_airflow_dag_file_exists(self):
         """Test that Airflow DAG file exists."""
-        dag_path = Path("deploy/airflow/dags/ml_pipeline_dag.py")
+        dag_path = Path(__file__).parent.parent / "deploy/airflow/dags/ml_pipeline_dag.py"
         assert dag_path.exists(), "ML Pipeline DAG file not found"
 
     @pytest.mark.unit
     @pytest.mark.fast
     def test_airflow_dag_syntax(self):
         """Test Airflow DAG Python syntax."""
-        dag_path = Path("deploy/airflow/dags/ml_pipeline_dag.py")
+        dag_path = Path(__file__).parent.parent / "deploy/airflow/dags/ml_pipeline_dag.py"
         if not dag_path.exists():
             pytest.fail("DAG file not found")
 
