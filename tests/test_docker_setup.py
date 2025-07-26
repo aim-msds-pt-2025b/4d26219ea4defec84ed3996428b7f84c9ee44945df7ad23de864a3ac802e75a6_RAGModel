@@ -128,7 +128,7 @@ class TestDockerSetup:
             "build",
             "-t",
             "test-ml-pipeline",
-            "--dry-run" if docker_available else "--help",  # Use dry-run if available
+            "--help",  # Use help flag to validate command construction
             ".",
         ]
 
@@ -293,7 +293,12 @@ class TestEnvironmentConfiguration:
         try:
             import tomllib
         except ImportError:
-            pytest.skip("No TOML parser available (Python 3.11+ required)")
+            try:
+                import tomli as tomllib
+            except ImportError:
+                pytest.skip(
+                    "No TOML parser available (Python 3.11+ required for tomllib, or install tomli)"
+                )
 
         with open(pyproject_path, "rb") as f:
             config = tomllib.load(f)

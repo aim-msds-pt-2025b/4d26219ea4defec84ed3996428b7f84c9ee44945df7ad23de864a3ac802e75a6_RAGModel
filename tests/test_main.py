@@ -9,8 +9,6 @@ from unittest.mock import patch
 import sys
 from pathlib import Path
 
-import importlib
-
 
 @pytest.fixture(scope="module", autouse=True)
 def ensure_src_in_syspath():
@@ -27,36 +25,44 @@ class TestMain:
 
     @pytest.mark.unit
     @pytest.mark.fast
-    @patch("src.run_pipeline.main")
-    def test_main_success(self, mock_run_pipeline):
+    def test_main_success(self):
         """Test successful pipeline execution."""
-        mock_run_pipeline.return_value = None
+        # Patch before importing to catch the import-time binding
+        with patch("src.run_pipeline.main") as mock_run_pipeline:
+            mock_run_pipeline.return_value = None
 
-        import main
+            # Clear any cached import
+            if "main" in sys.modules:
+                del sys.modules["main"]
 
-        importlib.reload(main)  # Ensure fresh module state
+            import main
 
-        with patch("builtins.print") as mock_print:
-            main.main()
+            with patch("builtins.print") as mock_print:
+                main.main()
 
-        mock_run_pipeline.assert_called_once()
-        mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
-        mock_print.assert_any_call("ML Pipeline completed successfully!")
+            mock_run_pipeline.assert_called_once()
+            mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
+            mock_print.assert_any_call("ML Pipeline completed successfully!")
 
     @pytest.mark.unit
     @pytest.mark.fast
-    @patch("src.run_pipeline.main")
-    def test_main_with_exception(self, mock_run_pipeline):
+    def test_main_with_exception(self):
         """Test pipeline execution with exception."""
-        mock_run_pipeline.side_effect = Exception("Test pipeline error")
+        # Patch before importing to catch the import-time binding
+        with patch("src.run_pipeline.main") as mock_run_pipeline:
+            mock_run_pipeline.side_effect = Exception("Test pipeline error")
 
-        import main
+            # Clear any cached import
+            if "main" in sys.modules:
+                del sys.modules["main"]
 
-        importlib.reload(main)
+            import main
 
-        with patch("builtins.print") as mock_print:
-            with pytest.raises(Exception, match="Test pipeline error"):
-                main.main()
+            with patch("builtins.print") as mock_print:
+                with pytest.raises(Exception, match="Test pipeline error"):
+                    main.main()
 
-        mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
-        mock_print.assert_any_call("ML Pipeline failed with error: Test pipeline error")
+            mock_print.assert_any_call("Starting RAG Model ML Pipeline...")
+            mock_print.assert_any_call(
+                "ML Pipeline failed with error: Test pipeline error"
+            )
