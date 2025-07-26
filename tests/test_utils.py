@@ -26,6 +26,8 @@ from src.utils import (
 class TestUtils:
     """Test class for utility functions."""
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_setup_logging_file_creation(self):
         """Test that setup_logging creates a log file."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -37,6 +39,8 @@ class TestUtils:
             # Check that log file was created
             assert os.path.exists(log_file)
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_handle_errors_decorator_success(self):
         """Test handle_errors decorator with successful function."""
 
@@ -47,6 +51,8 @@ class TestUtils:
         result = successful_function()
         assert result == "success"
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_handle_errors_decorator_with_exception(self):
         """Test handle_errors decorator with exception."""
 
@@ -60,6 +66,8 @@ class TestUtils:
 
             mock_error.assert_called_once()
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_dataframe_success(self):
         """Test validate_dataframe with valid DataFrame."""
         df = pd.DataFrame(
@@ -72,6 +80,8 @@ class TestUtils:
         result = validate_dataframe(df, min_rows=2, required_columns=["text", "label"])
         assert result is True
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_dataframe_empty(self):
         """Test validate_dataframe with empty DataFrame."""
         df = pd.DataFrame()
@@ -79,6 +89,8 @@ class TestUtils:
         with pytest.raises(ValueError, match="DataFrame is empty"):
             validate_dataframe(df, min_rows=1, required_columns=["text"])
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_dataframe_insufficient_rows(self):
         """Test validate_dataframe with insufficient rows."""
         df = pd.DataFrame({"text": ["Sample text"], "label": [0]})
@@ -88,6 +100,8 @@ class TestUtils:
         ):
             validate_dataframe(df, min_rows=5, required_columns=["text", "label"])
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_dataframe_missing_columns(self):
         """Test validate_dataframe with missing required columns."""
         df = pd.DataFrame(
@@ -97,6 +111,8 @@ class TestUtils:
         with pytest.raises(ValueError, match="Missing required columns: \\['label'\\]"):
             validate_dataframe(df, min_rows=1, required_columns=["text", "label"])
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_text_data_success(self):
         """Test validate_text_data with valid text data."""
         df = pd.DataFrame({"text": ["Sample text 1", "Sample text 2", "Sample text 3"]})
@@ -104,6 +120,8 @@ class TestUtils:
         result = validate_text_data(df, text_column="text")
         assert result is True
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_text_data_with_null_values(self):
         """Test validate_text_data with null values."""
         df = pd.DataFrame({"text": ["Sample text 1", None, "Sample text 3"]})
@@ -113,6 +131,8 @@ class TestUtils:
             assert result is True
             mock_warning.assert_called_with("Found null values in text column")
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_text_data_with_empty_strings(self):
         """Test validate_text_data with empty strings."""
         df = pd.DataFrame({"text": ["Sample text 1", "", "   ", "Sample text 4"]})
@@ -122,6 +142,8 @@ class TestUtils:
             assert result is True
             mock_warning.assert_called_with("Found 2 empty text entries")
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_text_data_custom_column(self):
         """Test validate_text_data with custom column name."""
         df = pd.DataFrame(
@@ -131,6 +153,8 @@ class TestUtils:
         result = validate_text_data(df, text_column="content")
         assert result is True
 
+    @pytest.mark.unit
+    @pytest.mark.fast
     def test_validate_text_data_with_null_and_empty(self):
         """Test validate_text_data with both null and empty values."""
         df = pd.DataFrame({"text": ["Sample text 1", None, "", "   ", "Sample text 5"]})

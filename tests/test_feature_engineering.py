@@ -63,6 +63,8 @@ def sample_train_test_data():
             os.remove(path)
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_feature_engineering_creates_vectorizer(sample_train_test_data):
     """Test that feature engineering creates and saves the vectorizer."""
     train_path, test_path = sample_train_test_data
@@ -91,6 +93,8 @@ def test_feature_engineering_creates_vectorizer(sample_train_test_data):
         os.remove(config.vectorizer_path)
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_feature_engineering_with_missing_files():
     """Test that feature engineering raises error for missing files."""
     non_existent_train = "data/processed/non_existent_train.csv"
@@ -100,6 +104,8 @@ def test_feature_engineering_with_missing_files():
         feature_engineering(non_existent_train, non_existent_test)
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_feature_engineering_with_invalid_columns():
     """Test that feature engineering raises error for invalid data structure."""
     # Create sample data with missing required columns

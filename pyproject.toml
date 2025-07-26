@@ -14,3 +14,17 @@ dependencies = [
     "pytest-mock>=3.14.1",
     "scikit-learn>=1.7.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "unit: marks tests as unit tests (fast, isolated)",
+    "integration: marks tests as integration tests (slower, multiple components)",
+    "smoke: marks tests as smoke tests (critical functionality)",
+    "fast: marks tests that run quickly",
+    "slow: marks tests that take longer to run",
+]

@@ -26,6 +26,8 @@ def sample_model_and_data():
     return model, X_test, y_test
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_evaluate_model_saves_metrics(sample_model_and_data):
     """Test that model evaluation saves metrics correctly."""
     model, X_test, y_test = sample_model_and_data
@@ -56,6 +58,8 @@ def test_evaluate_model_saves_metrics(sample_model_and_data):
         os.remove(config.metrics_path)
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_evaluate_model_returns_correct_accuracy(sample_model_and_data):
     """Test that evaluate_model returns the correct accuracy."""
     model, X_test, y_test = sample_model_and_data
@@ -79,6 +83,8 @@ def test_evaluate_model_returns_correct_accuracy(sample_model_and_data):
         os.remove(config.metrics_path)
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_evaluate_model_with_perfect_predictions():
     """Test evaluation with perfect predictions."""
     np.random.seed(42)

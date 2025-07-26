@@ -7,6 +7,8 @@ from src.data_preprocessing import preprocess_data
 from src.config import config
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_preprocess_data_creates_files():
     """
     Tests if the preprocess_data function successfully creates
@@ -71,6 +73,8 @@ def test_preprocess_data_creates_files():
     os.remove(test_path)
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_preprocess_data_with_invalid_file():
     """
     Tests that preprocess_data raises appropriate error for non-existent file.
@@ -81,6 +85,8 @@ def test_preprocess_data_with_invalid_file():
         preprocess_data(non_existent_path)
 
 
+@pytest.mark.unit
+@pytest.mark.fast
 def test_preprocess_data_with_invalid_columns():
     """
     Tests that preprocess_data raises appropriate error for invalid data structure.
