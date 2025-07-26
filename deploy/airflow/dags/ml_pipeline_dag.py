@@ -19,9 +19,11 @@ from airflow.operators.bash import BashOperator
 from airflow.utils.dates import days_ago
 import sys
 import logging
+import os
 
 # Add the project root to Python path for imports
-sys.path.insert(0, "/opt/airflow")
+sys.path.insert(0, os.environ.get("AIRFLOW_PROJECT_ROOT", "/opt/airflow"))
+
 
 # Import ML pipeline modules
 from src.download_data import download_raw_data
@@ -306,35 +308,30 @@ def pipeline_success_notification(**context):
 download_task = PythonOperator(
     task_id="download_data",
     python_callable=download_data_task,
-    provide_context=True,  # Enables access to context and XCom
     dag=dag,
 )
 
 preprocess_task = PythonOperator(
     task_id="preprocess_data",
     python_callable=preprocess_data_task,
-    provide_context=True,
     dag=dag,
 )
 
 feature_engineering_task_op = PythonOperator(
     task_id="feature_engineering",
     python_callable=feature_engineering_task,
-    provide_context=True,
     dag=dag,
 )
 
 train_task = PythonOperator(
     task_id="train_model",
     python_callable=train_model_task,
-    provide_context=True,
     dag=dag,
 )
 
 evaluate_task = PythonOperator(
     task_id="evaluate_model",
     python_callable=evaluate_model_task,
-    provide_context=True,
     dag=dag,
 )
 
@@ -352,6 +349,7 @@ validate_environment = BashOperator(
     echo "Validating ML pipeline environment..."
     python -c "
 import sys
+import os
 print(f'Python version: {sys.version}')
 import src.config
 print(f'Config loaded successfully')
