@@ -1,37 +1,22 @@
-# Multi-stage Dockerfile for ML Pipeline
-# Stage 1: Build stage with uv for dependency resolution
-FROM python:3.12-slim as builder
+# Dockerfile for ML Pipeline with Apache Airflow
+FROM apache/airflow:2.9.3-python3.12
+
+# Set working directory
+WORKDIR /opt/airflow
+
+# Switch to root to install additional dependencies
+USER root
 
 # Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Set working directory
-WORKDIR /app
-
-# Copy dependency files first (for better layer caching)
+# Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Create virtual environment and install dependencies
-RUN uv venv /opt/venv
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Install dependencies using uv (faster than pip)
-RUN uv sync --frozen --no-dev
-
-# Stage 2: Runtime stage - minimal image with only necessary components
-FROM python:3.12-slim as runtime
-
-# Create non-root user for security
-RUN groupadd -r mluser && useradd -r -g mluser mluser
-
-# Set working directory
-WORKDIR /app
-
-# Copy virtual environment from builder stage
-COPY --from=builder /opt/venv /opt/venv
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install additional Python packages for ML pipeline
+USER airflow
+RUN pip install --no-cache-dir datasets==2.20.0 scikit-learn==1.5.1 pandas==2.2.2
+USER root
 
 # Copy source code
 COPY src/ ./src/
@@ -39,18 +24,10 @@ COPY main.py ./
 
 # Create necessary directories for data persistence
 RUN mkdir -p data/raw data/processed models reports && \
-    chown -R mluser:mluser /app
-
-# Switch to non-root user
-USER mluser
+    chown -R airflow:root /opt/airflow/data /opt/airflow/models /opt/airflow/reports /opt/airflow/src /opt/airflow/main.py
 
 # Set Python path to include src directory
-ENV PYTHONPATH="/app"
+ENV PYTHONPATH="/opt/airflow:/opt/airflow/src"
 
-# Health check to verify container is ready
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import src.config; print('Container healthy')" || exit 1
-
-# Default command to run the ML pipeline
-# Can be overridden at runtime for specific tasks
-CMD ["python", "src/run_pipeline.py"]
+# Switch back to airflow user
+USER airflow
