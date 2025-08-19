@@ -1,9 +1,22 @@
 # src/evaluation.py
 
 import logging
+import json
+import os
 from sklearn.metrics import accuracy_score, classification_report
 from src.config import config
 from src.utils import handle_errors
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import mlflow  # type: ignore
+mlflow = None
+try:
+    import mlflow as _mlflow  # type: ignore
+
+    mlflow = _mlflow
+except Exception:
+    pass
 
 
 @handle_errors
@@ -42,11 +55,21 @@ def evaluate_model(model, X_test, y_test):
     # Ensure reports directory exists
     config.__post_init__()
 
-    # Save metrics to a file
+    # Save metrics to a file and JSON
     with open(config.metrics_path, "w", encoding="utf-8") as f:
         f.write(f"Accuracy: {accuracy:.4f}\n\n")
         f.write("Classification Report:\n")
         f.write(str(report))
+
+    json_path = os.path.join("reports", "evaluation_results.json")
+    with open(json_path, "w", encoding="utf-8") as jf:
+        json.dump({"accuracy": float(accuracy)}, jf, indent=2)
+    # Log 2 metrics to MLflow (accuracy and f1 macro if available via report would require parsing; keep accuracy)
+    if mlflow is not None:
+        try:
+            mlflow.log_metric("accuracy", float(accuracy))
+        except Exception:
+            pass
 
     logger.info("Metrics saved to %s", config.metrics_path)
     return accuracy

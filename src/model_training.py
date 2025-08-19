@@ -1,10 +1,23 @@
 # src/model_training.py
 
 import logging
+import os
 from sklearn.linear_model import LogisticRegression
 import joblib
 from src.config import config
 from src.utils import handle_errors
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import mlflow  # type: ignore
+    import mlflow.pyfunc  # type: ignore
+mlflow = None
+try:  # runtime optional import
+    import mlflow as _mlflow  # type: ignore
+
+    mlflow = _mlflow
+except Exception:
+    pass
 
 
 @handle_errors
@@ -29,8 +42,23 @@ def train_model(X_train, y_train):
     logger.info("Starting model training...")
 
     # Initialize and train the model
-    model = LogisticRegression(max_iter=1000, random_state=config.RANDOM_STATE)
-    model.fit(X_train, y_train)
+    random_state = config.RANDOM_STATE
+    model = LogisticRegression(max_iter=1000, random_state=random_state)
+
+    # MLflow tracking
+    if mlflow is not None:
+        mlflow.set_tracking_uri(
+            os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+        )
+        with mlflow.start_run(run_name="train_logreg"):
+            # Log 3 hyperparameters (adapted for logistic regression)
+            mlflow.log_param("max_iter", 1000)
+            mlflow.log_param("random_state", random_state)
+            mlflow.log_param("penalty", "l2")
+
+            model.fit(X_train, y_train)
+    else:
+        model.fit(X_train, y_train)
 
     logger.info("Model training complete.")
     logger.info(
@@ -45,6 +73,9 @@ def train_model(X_train, y_train):
     # Save the model
     joblib.dump(model, config.model_path)
     logger.info("Model saved to %s", config.model_path)
+    # Log artifact if mlflow available
+    if mlflow is not None:
+        mlflow.log_artifact(config.model_path, artifact_path="model_artifacts")
 
     return model
 

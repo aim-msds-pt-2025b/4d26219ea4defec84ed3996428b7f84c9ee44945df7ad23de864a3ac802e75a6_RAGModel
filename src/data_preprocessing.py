@@ -3,6 +3,7 @@
 import pandas as pd
 import logging
 from sklearn.model_selection import train_test_split
+import numpy as np
 from src.config import config
 from src.utils import (
     handle_errors,
@@ -24,9 +25,8 @@ def preprocess_data(raw_data_path: str):
     Args:
         raw_data_path (str): The file path for the raw data CSV.
 
-    Returns:
-        tuple: A tuple containing (train_path, test_path) - paths to the
-               saved training and testing CSV files.
+        Returns:
+            tuple: (train_path, test_path)
 
     Raises:
         FileNotFoundError: If the raw data file doesn't exist.
@@ -67,14 +67,162 @@ def preprocess_data(raw_data_path: str):
     train_df.to_csv(config.train_path, index=False)
     test_df.to_csv(config.test_path, index=False)
 
+    # Create drifted versions of train and test per HW3 requirements
+    # Text task: simulate drift by injecting simple noise into text and labels proportionally
+    rng = np.random.default_rng(config.RANDOM_STATE)
+
+    def drift_text(series: pd.Series) -> pd.Series:
+        # Append random punctuation or duplicate words to simulate style drift
+        punct = ["!", ".", "?", ",", ";"]
+        choices = rng.choice(punct, size=len(series))
+        # randomly duplicate last word 10-15%
+        mask = rng.random(len(series)) < rng.uniform(0.10, 0.15)
+
+        def mutate(s, ch, dupe):
+            if not isinstance(s, str) or not s:
+                return s
+            out = s + ch
+            if dupe:
+                parts = s.strip().split()
+                if parts:
+                    out = s + " " + parts[-1]
+            return out
+
+        return pd.Series(
+            [
+                mutate(s, ch, bool(m))
+                for s, ch, m in zip(series.tolist(), choices, mask)
+            ],
+            index=series.index,
+        )
+
+    train_df_drifted = train_df.copy()
+    test_df_drifted = test_df.copy()
+    train_df_drifted["text"] = drift_text(train_df_drifted["text"])
+    test_df_drifted["text"] = drift_text(test_df_drifted["text"])
+
+    # Randomly flip 10-15% of labels uniformly
+    def flip_labels(labels: pd.Series) -> pd.Series:
+        unique_labels = labels.unique().tolist()
+        p = rng.uniform(0.10, 0.15)
+        mask = rng.random(len(labels)) < p
+        flipped = labels.copy()
+        for idx in labels[mask].index:
+            # choose a label different from current
+            cur = labels.loc[idx]
+            other_labels = [
+                candidate for candidate in unique_labels if candidate != cur
+            ]
+            if other_labels:
+                flipped.loc[idx] = rng.choice(other_labels)
+        return flipped
+
+    train_df_drifted["label"] = flip_labels(train_df_drifted["label"])
+    test_df_drifted["label"] = flip_labels(test_df_drifted["label"])
+
+    # Save drifted datasets
+    drifted_train_path = "data/drifted_train.csv"
+    drifted_test_path = "data/drifted_test.csv"
+    train_df_drifted.to_csv(drifted_train_path, index=False)
+    test_df_drifted.to_csv(drifted_test_path, index=False)
+
     logger.info(
         f"Data preprocessing complete. Train set: {len(train_df)} samples, Test set: {len(test_df)} samples"
     )
     logger.info(
         f"Train and test sets saved to {config.train_path} and {config.test_path}"
     )
+    logger.info(
+        f"Drifted datasets saved to {drifted_train_path} and {drifted_test_path}"
+    )
 
     return config.train_path, config.test_path
+
+
+def preprocess_data_with_drift(raw_data_path: str):
+    """
+    Extended preprocessing that also returns in-memory splits and drifted variants.
+
+    Returns:
+        tuple: (
+            X_train, X_test, y_train, y_test,
+            X_train_drifted, y_train_drifted, X_test_drifted, y_test_drifted
+        )
+    """
+    # Re-run core preprocessing to ensure files are created and validated
+    train_path, test_path = preprocess_data(raw_data_path)
+
+    train_df = pd.read_csv(train_path)
+    test_df = pd.read_csv(test_path)
+
+    X_train = train_df["text"]
+    y_train = train_df["label"]
+    X_test = test_df["text"]
+    y_test = test_df["label"]
+
+    # Generate drift following the same approach as in preprocess_data
+    rng = np.random.default_rng(config.RANDOM_STATE)
+
+    def drift_text(series: pd.Series) -> pd.Series:
+        punct = ["!", ".", "?", ",", ";"]
+        choices = rng.choice(punct, size=len(series))
+        mask = rng.random(len(series)) < rng.uniform(0.10, 0.15)
+
+        def mutate(s, ch, dupe):
+            if not isinstance(s, str) or not s:
+                return s
+            out = s + ch
+            if dupe:
+                parts = s.strip().split()
+                if parts:
+                    out = s + " " + parts[-1]
+            return out
+
+        return pd.Series(
+            [
+                mutate(s, ch, bool(m))
+                for s, ch, m in zip(series.tolist(), choices, mask)
+            ],
+            index=series.index,
+        )
+
+    def flip_labels(labels: pd.Series) -> pd.Series:
+        unique_labels = labels.unique().tolist()
+        p = rng.uniform(0.10, 0.15)
+        mask = rng.random(len(labels)) < p
+        flipped = labels.copy()
+        for idx in labels[mask].index:
+            cur = labels.loc[idx]
+            other_labels = [
+                candidate for candidate in unique_labels if candidate != cur
+            ]
+            if other_labels:
+                flipped.loc[idx] = rng.choice(other_labels)
+        return flipped
+
+    X_train_drifted = drift_text(X_train)
+    y_train_drifted = flip_labels(y_train)
+    X_test_drifted = drift_text(X_test)
+    y_test_drifted = flip_labels(y_test)
+
+    # Persist drifted datasets (overwrite)
+    pd.DataFrame({"text": X_train_drifted, "label": y_train_drifted}).to_csv(
+        "data/drifted_train.csv", index=False
+    )
+    pd.DataFrame({"text": X_test_drifted, "label": y_test_drifted}).to_csv(
+        "data/drifted_test.csv", index=False
+    )
+
+    return (
+        X_train,
+        X_test,
+        y_train,
+        y_test,
+        X_train_drifted,
+        y_train_drifted,
+        X_test_drifted,
+        y_test_drifted,
+    )
 
 
 if __name__ == "__main__":

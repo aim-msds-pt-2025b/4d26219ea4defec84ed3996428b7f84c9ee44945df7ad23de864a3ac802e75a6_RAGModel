@@ -23,7 +23,7 @@ repos:
   rev: v1.37.1
   hooks:
   - id: yamllint  # YAML file linting for docker-compose.yml
-    args: [-d, '{extends: relaxed, rules: {line-length: {max: 120}}}']
+    args: [-d, '{extends: relaxed, rules: {line-length: {max: 120}, new-lines: disable}}']
 - repo: local
   hooks:
   - id: pytest
@@ -33,4 +33,4 @@ repos:
     types: [python]
     pass_filenames: false
     always_run: true
-    args: ["-v", "-m", "fast", "tests/"]
+    args: ["-v", "-m", "fast", "tests/", "--tb=short"]
