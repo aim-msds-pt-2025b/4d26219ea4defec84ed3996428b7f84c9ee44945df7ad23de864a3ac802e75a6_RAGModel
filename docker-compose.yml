@@ -3,10 +3,12 @@
 
 x-airflow-common:
   &airflow-common
-  # Official Airflow image with Python 3.12 support
+  # Airflow image built from local Dockerfile (Apache Airflow base)
+  build:
+    context: .
+    dockerfile: Dockerfile
   image: ml-pipeline:latest
-  environment:
-    &airflow-common-env
+  environment: &airflow-common-env
     # Core Airflow configuration
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -21,23 +23,12 @@ x-airflow-common:
     # Set timezone
     TZ: UTC
   volumes:
-    # Mount DAGs directory
-    - ${AIRFLOW_PROJ_DIR:-.}/deploy/airflow/dags:/opt/airflow/dags
-    # Mount logs directory
-    - ${AIRFLOW_PROJ_DIR:-.}/deploy/airflow/logs:/opt/airflow/logs
-    # Mount plugins directory (if needed)
-    - ${AIRFLOW_PROJ_DIR:-.}/deploy/airflow/plugins:/opt/airflow/plugins
-    # Mount ML pipeline source code for DAG access
-    - ${AIRFLOW_PROJ_DIR:-.}/src:/opt/airflow/src
-    # Mount data directories for pipeline execution
-    - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
-    - ${AIRFLOW_PROJ_DIR:-.}/models:/opt/airflow/models
-    - ${AIRFLOW_PROJ_DIR:-.}/reports:/opt/airflow/reports
-    # Mount project configuration
-    - ${AIRFLOW_PROJ_DIR:-.}/pyproject.toml:/opt/airflow/pyproject.toml
+    # Use named volumes instead of bind mounts to avoid Windows path issues
+    - pipeline-data:/opt/airflow/data
+    - pipeline-models:/opt/airflow/models
+    - pipeline-reports:/opt/airflow/reports
   user: "${AIRFLOW_UID:-50000}:0"
-  depends_on:
-    &airflow-common-depends-on
+  depends_on: &airflow-common-depends-on
     redis:
       condition: service_healthy
     postgres:
@@ -100,7 +91,7 @@ services:
     <<: *airflow-common
     command: scheduler
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -134,12 +125,6 @@ services:
     command:
       - -c
       - |
-        if [[ -z "${AIRFLOW_UID}" ]]; then
-          echo "AIRFLOW_UID not set - using default 50000"
-          export AIRFLOW_UID=50000
-        fi
-        mkdir -p /sources/logs /sources/dags /sources/plugins
-        chown -R "$${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
         exec /entrypoint airflow version
     environment:
       <<: *airflow-common-env
@@ -148,8 +133,6 @@ services:
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
     user: "0:0"
-    volumes:
-      - ${AIRFLOW_PROJ_DIR:-.}/deploy/airflow:/sources
 
   # Optional: Airflow CLI for debugging
   airflow-cli:
@@ -172,11 +155,12 @@ services:
     ports:
       - "5000:5000"
     environment:
-      MLFLOW_BACKEND_STORE_URI: file:///mlflow/runs
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlflow:mlflow@postgres:5432/mlflow
       MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlflow/artifacts
+      MLFLOW_HOST: 0.0.0.0
+      MLFLOW_PORT: 5000
     volumes:
       - mlflow-artifacts:/mlflow/artifacts
-      - ./mlflow:/mlflow
     depends_on:
       postgres:
         condition: service_healthy
@@ -186,3 +170,7 @@ volumes:
   # Persistent volume for PostgreSQL data
   postgres-db-volume:
   mlflow-artifacts:
+  # Pipeline data volumes (avoids Windows path mounting issues)
+  pipeline-data:
+  pipeline-models:
+  pipeline-reports:

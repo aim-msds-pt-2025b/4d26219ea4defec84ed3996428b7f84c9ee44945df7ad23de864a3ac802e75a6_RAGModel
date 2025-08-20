@@ -276,10 +276,11 @@ def drift_detection_task(**context):
 
         logger.info(f"Drift detection completed: {drift_results}")
 
-        # Push to XCom as well
-        context["task_instance"].xcom_push(
-            key="drift_detected", value=drift_results["drift_detected"]
+        # Push to XCom as well (support both keys)
+        drift_flag = drift_results.get(
+            "dataset_drift", drift_results.get("drift_detected", False)
         )
+        context["task_instance"].xcom_push(key="drift_detected", value=drift_flag)
         context["task_instance"].xcom_push(
             key="overall_drift_score", value=drift_results["overall_drift_score"]
         )
@@ -301,7 +302,9 @@ def branch_on_drift(**context):
         with open(drift_report_path, "r", encoding="utf-8") as f:
             drift_results = json.load(f)
 
-        drift_detected = drift_results.get("drift_detected", False)
+        drift_detected = drift_results.get(
+            "dataset_drift", drift_results.get("drift_detected", False)
+        )
 
         if drift_detected:
             logger.info("Drift detected - branching to retrain_model")

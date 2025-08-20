@@ -3,7 +3,7 @@
 import logging
 import json
 import os
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report, f1_score
 from src.config import config
 from src.utils import handle_errors
 from typing import TYPE_CHECKING
@@ -46,9 +46,11 @@ def evaluate_model(model, X_test, y_test):
 
     # Calculate metrics
     accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred, average="weighted")
     report = classification_report(y_test, y_pred)
 
     logger.info("Model Accuracy: %.4f", accuracy)
+    logger.info("Model F1-Score: %.4f", f1)
     logger.info("Classification Report:")
     logger.info("\n%s", report)
 
@@ -63,11 +65,12 @@ def evaluate_model(model, X_test, y_test):
 
     json_path = os.path.join("reports", "evaluation_results.json")
     with open(json_path, "w", encoding="utf-8") as jf:
-        json.dump({"accuracy": float(accuracy)}, jf, indent=2)
-    # Log 2 metrics to MLflow (accuracy and f1 macro if available via report would require parsing; keep accuracy)
+        json.dump({"accuracy": float(accuracy), "f1_score": float(f1)}, jf, indent=2)
+    # Log 2 metrics to MLflow (accuracy and f1_score as required)
     if mlflow is not None:
         try:
             mlflow.log_metric("accuracy", float(accuracy))
+            mlflow.log_metric("f1_score", float(f1))
 
             # Try to register model if threshold is met
             from src.model_training import register_model_if_threshold_met

@@ -221,6 +221,8 @@ redis-data/
 # Airflow logs and runtime files
 deploy/airflow/logs/*
 !deploy/airflow/logs/.gitkeep
+logs/
+logs/**/*
 airflow-*.pid
 airflow-*.err
 airflow-*.out

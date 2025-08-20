@@ -87,7 +87,11 @@ def main():
             try:
                 if MLFLOW_AVAILABLE and mlflow is not None:
                     mlflow.log_param(
-                        "test_drift_detected", test_drift_results["drift_detected"]
+                        "test_drift_detected",
+                        test_drift_results.get(
+                            "dataset_drift",
+                            test_drift_results.get("drift_detected", False),
+                        ),
                     )
                     mlflow.log_param(
                         "test_overall_drift_score",
@@ -99,7 +103,11 @@ def main():
         logger.info(f"Test drift results: {test_drift_results}")
 
         # Raise error if drift detected (as required by HW3)
-        if test_drift_results["drift_detected"]:
+        # Support both old and new result format for compatibility
+        drift_detected = test_drift_results.get(
+            "dataset_drift", test_drift_results.get("drift_detected", False)
+        )
+        if drift_detected:
             raise ValueError(
                 "Data drift detected in test set! Model retraining required."
             )

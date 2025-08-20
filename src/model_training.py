@@ -61,9 +61,10 @@ class CustomMLModel:
 if mlflow is not None:
     try:
         from typing import Any
+        import mlflow.pyfunc
 
         # This creates a proper MLflow PyFunc model class
-        class CustomMLModelPyFunc:  # type: ignore
+        class CustomMLModelPyFunc(mlflow.pyfunc.PythonModel):
             """MLflow-compatible custom model wrapper"""
 
             def __init__(self):
@@ -71,7 +72,7 @@ if mlflow is not None:
                 self.preprocessor = None
                 self.feature_names = None
 
-            def load_context(self, context: Any) -> None:
+            def load_context(self, context: mlflow.pyfunc.PythonModelContext) -> None:
                 """Load model artifacts from MLflow context."""
                 self.model = joblib.load(context.artifacts["model"])
                 if "preprocessor" in context.artifacts:
@@ -81,7 +82,10 @@ if mlflow is not None:
                         self.feature_names = [line.strip() for line in f.readlines()]
 
             def predict(
-                self, context: Any, model_input: Any, params: Any = None
+                self,
+                context: mlflow.pyfunc.PythonModelContext,
+                model_input: Any,
+                params: Any = None,
             ) -> Any:
                 """Make predictions using the trained model."""
                 if self.model is None:
@@ -168,14 +172,24 @@ def train_model(X_train, y_train):
                 artifacts = {"model": config.model_path}
 
                 # Create custom model instance
-                custom_model = CustomMLModel()
+                custom_model = CustomMLModelPyFunc()
+
+                # Create a sample input for model signature
+                import pandas as pd
+
+                sample_input = pd.DataFrame(
+                    X_train[:1].toarray()
+                    if hasattr(X_train, "toarray")
+                    else X_train[:1]
+                )
 
                 # Log the model using custom PyFunc wrapper (as required by HW3)
                 try:
                     mlflow.pyfunc.log_model(
-                        artifact_path="model",
+                        name="model",  # Use 'name' instead of deprecated 'artifact_path'
                         python_model=custom_model,
                         artifacts=artifacts,
+                        input_example=sample_input,  # Add input example for signature
                     )
                 except Exception as e:
                     logger.warning(f"Custom PyFunc model logging failed: {e}")
@@ -185,8 +199,9 @@ def train_model(X_train, y_train):
 
                         mlflow.sklearn.log_model(  # type: ignore
                             model,
-                            artifact_path="model_sklearn",
+                            name="model_sklearn",  # Use 'name' instead of 'artifact_path'
                             registered_model_name=None,
+                            input_example=sample_input,
                         )
                     except (AttributeError, ImportError):
                         # Last fallback: just log as artifact

@@ -23,10 +23,12 @@ COPY pyproject.toml uv.lock ./
 # Copy source code
 COPY src/ ./src/
 COPY main.py ./
+COPY deploy/airflow/dags/ ./dags/
+COPY deploy/airflow/plugins/ ./plugins/
 
 # Create necessary directories for data persistence
 RUN mkdir -p data/raw data/processed models reports && \
-    chown -R airflow:root /opt/airflow/data /opt/airflow/models /opt/airflow/reports /opt/airflow/src /opt/airflow/main.py
+    chown -R airflow:root /opt/airflow/data /opt/airflow/models /opt/airflow/reports /opt/airflow/src /opt/airflow/dags /opt/airflow/plugins /opt/airflow/main.py
 
 # Set Python path to include src directory
 ENV PYTHONPATH="/opt/airflow:/opt/airflow/src"
