@@ -286,10 +286,36 @@ embeddings/
 *.faiss
 *.index
 
-# Experiment tracking
+# ================================
+# MLflow & Experiment Tracking
+# ================================
+
+# MLflow experiment tracking (local storage)
 mlruns/
 .mlflow/
+
+# MLflow artifacts and runs (generated during pipeline execution)
+mlflow/runs/
+mlflow/artifacts/
+mlflow/meta.yaml
+mlflow/MLmodel
+mlflow.db
+mlartifacts/
+
+# MLflow server and tracking files
+.mlflow.db
+mlflow-*.log
+mlflow-*.pid
+
+# Weights & Biases
 wandb/
+
+# Drift detection reports (can be regenerated)
+reports/drift_report.json
+reports/*_drift_*.json
+
+# Model evaluation results (regenerated on each run)
+reports/evaluation_results.json
 
 # ================================
 # Keep Structure Files

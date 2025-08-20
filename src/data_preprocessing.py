@@ -75,17 +75,23 @@ def preprocess_data(raw_data_path: str):
         # Append random punctuation or duplicate words to simulate style drift
         punct = ["!", ".", "?", ",", ";"]
         choices = rng.choice(punct, size=len(series))
-        # randomly duplicate last word 10-15%
-        mask = rng.random(len(series)) < rng.uniform(0.10, 0.15)
+        # randomly duplicate last word 80-90% (EXTREMELY aggressive)
+        mask = rng.random(len(series)) < rng.uniform(0.80, 0.90)
 
         def mutate(s, ch, dupe):
             if not isinstance(s, str) or not s:
                 return s
-            out = s + ch
+
+            # Use single consistent token for high-frequency pattern detection
+            synthetic_suffix = (
+                " SYNTHETIC_DRIFT_MARKER"  # single repeated token -> high freq
+            )
+            out = s + synthetic_suffix
+
             if dupe:
                 parts = s.strip().split()
                 if parts:
-                    out = s + " " + parts[-1]
+                    out = s + " " + parts[-1] + synthetic_suffix
             return out
 
         return pd.Series(
@@ -101,10 +107,25 @@ def preprocess_data(raw_data_path: str):
     train_df_drifted["text"] = drift_text(train_df_drifted["text"])
     test_df_drifted["text"] = drift_text(test_df_drifted["text"])
 
-    # Randomly flip 10-15% of labels uniformly
+    # Verify drift was applied
+    train_markers = (
+        train_df_drifted["text"]
+        .str.contains("SYNTHETIC_DRIFT_MARKER", case=False, na=False)
+        .sum()
+    )
+    test_markers = (
+        test_df_drifted["text"]
+        .str.contains("SYNTHETIC_DRIFT_MARKER", case=False, na=False)
+        .sum()
+    )
+    logger.info(
+        f"After drift generation: Train markers: {train_markers}/{len(train_df_drifted)}, Test markers: {test_markers}/{len(test_df_drifted)}"
+    )
+
+    # Randomly flip 60-80% of labels uniformly (EXTREMELY aggressive)
     def flip_labels(labels: pd.Series) -> pd.Series:
         unique_labels = labels.unique().tolist()
-        p = rng.uniform(0.10, 0.15)
+        p = rng.uniform(0.60, 0.80)  # EXTREMELY aggressive label flipping
         mask = rng.random(len(labels)) < p
         flipped = labels.copy()
         for idx in labels[mask].index:
@@ -125,6 +146,17 @@ def preprocess_data(raw_data_path: str):
     drifted_test_path = "data/drifted_test.csv"
     train_df_drifted.to_csv(drifted_train_path, index=False)
     test_df_drifted.to_csv(drifted_test_path, index=False)
+
+    # Verify saved data still has markers
+    saved_test = pd.read_csv(drifted_test_path)
+    saved_markers = (
+        saved_test["text"]
+        .str.contains("SYNTHETIC_DRIFT_MARKER", case=False, na=False)
+        .sum()
+    )
+    logger.info(
+        f"After saving: Test markers in saved file: {saved_markers}/{len(saved_test)}"
+    )
 
     logger.info(
         f"Data preprocessing complete. Train set: {len(train_df)} samples, Test set: {len(test_df)} samples"
@@ -188,7 +220,7 @@ def preprocess_data_with_drift(raw_data_path: str):
 
     def flip_labels(labels: pd.Series) -> pd.Series:
         unique_labels = labels.unique().tolist()
-        p = rng.uniform(0.10, 0.15)
+        p = rng.uniform(0.25, 0.35)  # Much more aggressive label flipping
         mask = rng.random(len(labels)) < p
         flipped = labels.copy()
         for idx in labels[mask].index:

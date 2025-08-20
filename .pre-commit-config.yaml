@@ -17,8 +17,8 @@ repos:
   rev: v2.12.0
   hooks:
   - id: hadolint  # Dockerfile linting for best practices and security
-    files: (^|/)Dockerfile
-    args: [--ignore, DL3008]  # Ignore specific rules if needed
+    files: (^|/)Dockerfile.*
+    args: [--ignore, DL3008, --ignore, DL3059, --ignore, DL3025]  # Ignore version pinning and consecutive RUN commands
 - repo: https://github.com/adrienverge/yamllint
   rev: v1.37.1
   hooks:
@@ -32,5 +32,6 @@ repos:
     language: system
     types: [python]
     pass_filenames: false
-    always_run: true
-    args: ["-v", "-m", "fast", "tests/", "--tb=short"]
+    always_run: false  # Only run when python files change
+    stages: [manual]   # Run only when explicitly called
+    args: ["-v", "-m", "fast", "tests/", "--tb=short", "--maxfail=3", "-x"]

@@ -192,6 +192,35 @@ python -m pytest --cov=src
 # Run tests with detailed coverage report showing missing lines
 python -m pytest --cov=src --cov-report=term-missing
 ```
+
+### Testing the Complete HW3 Pipeline
+
+To validate the MLflow integration and drift detection:
+
+```bash
+# Test the complete pipeline with drift detection
+python src/run_pipeline.py
+
+# Verify MLflow tracking is working
+docker-compose up -d
+# Navigate to http://localhost:5001 to see experiment tracking
+
+# Test the Airflow DAG
+docker-compose up -d
+# Navigate to http://localhost:8080, enable and trigger ml_pipeline_news_classification
+
+# Test drift detection specifically
+python -c "
+from src.drift_detection import detect_drift
+import pandas as pd
+# This should detect drift and demonstrate the error raising
+try:
+    detect_drift('data/processed/train.csv', 'data/processed/test.csv')
+    print('No drift detected')
+except ValueError as e:
+    print(f'Drift detected: {e}')
+"
+```
 ### Test Structure
 
 - `tests/test_data.py`: Tests for data preprocessing functionality
@@ -199,6 +228,56 @@ python -m pytest --cov=src --cov-report=term-missing
 - `tests/test_model_training.py`: Tests for model training
 - `tests/test_evaluation.py`: Tests for model evaluation
 - `tests/test_pipeline.py`: Integration tests for the complete pipeline
+
+## Model Drift Detection
+
+The model drift detection system monitors data distribution changes that could degrade model performance over time. Our implementation uses Evidently AI's DataDriftPreset to detect feature-level drift by comparing statistical distributions between training and incoming data. Owing to use of TF-IDF, it was more difficult to induce a clearly noticeable drift that Evidently would pick up. For now, we've leveraged a custom synthetic marker to be able to run the test. Despite attempting a more realistic attempt of inducing drift, flipping 25-35% of labels, adding multiple punctuations or mutating text by repeating last word, it was difficult to flag drift without more crude methods such as length.
+
+## MLflow Integration
+
+MLflow provides comprehensive experiment tracking and model lifecycle management throughout our ML pipeline. The integration automatically logs model parameters, metrics, and artifacts during training, enabling reproducible experiments and model versioning. Our custom PyFunc model wrapper ensures seamless deployment compatibility while maintaining access to preprocessing artifacts like TF-IDF vectorizers. Models achieving accuracy scores above 0.8 are automatically registered to the MLflow Model Registry with appropriate versioning and staging labels.
+
+### MLflow Configuration
+
+Our implementation includes:
+- **Tracking URI**: Set to `http://localhost:5000` for containerized deployment
+- **Custom PyFunc Model**: Wrapper class implementing `load_context()` and `predict()` methods
+- **Experiment Logging**: 3 hyperparameters logged for Logistic Regression:
+  - `max_iter`: Maximum iterations (1000)
+  - `random_state`: Random seed for reproducibility (42)
+  - `penalty`: Regularization type ("l2")
+- **Model Registration**: Automatic registration when accuracy > 0.8
+- **PostgreSQL Backend**: Persistent experiment metadata storage
+
+### Verification Commands
+
+To verify MLflow integration is working correctly:
+
+```bash
+# Start MLflow services
+docker-compose up -d
+
+# Verify MLflow UI is accessible (should return HTML)
+curl http://localhost:5000
+
+# Run pipeline to generate experiments
+python src/run_pipeline.py
+
+# Access MLflow UI for experiment tracking
+# Navigate to http://localhost:5000 in your browser
+```
+
+### Hyperparameter Selection
+
+For our **Logistic Regression** classification model, we log the following 3 hyperparameters to MLflow:
+
+1. **`max_iter`** (1000): Maximum number of iterations for the solver to converge. This is crucial for text classification where high-dimensional TF-IDF features may require more iterations to reach optimal weights.
+
+2. **`random_state`** (42): Random seed for reproducible results across runs. Essential for experiment tracking and ensuring consistent model performance comparisons in MLflow.
+
+3. **`penalty`** ("l2"): Regularization type to prevent overfitting. L2 regularization is well-suited for text classification tasks with sparse TF-IDF features, helping to generalize better on unseen news articles.
+
+These parameters are specifically chosen for text classification with TF-IDF features and logged to MLflow for experiment reproducibility and hyperparameter tracking.
 
 ## Code Structure
 
@@ -225,23 +304,28 @@ python -m pytest --cov=src --cov-report=term-missing
 
 ## Folder Structure
 
-The project uses a structured layout to ensure clarity, reproducibility, and support for containerized, orchestrated workflows:
+The project uses a structured layout to ensure clarity, reproducibility, and support for containerized, orchestrated workflows with MLflow experiment tracking and model drift detection capabilities:
 
 ```
 ├── data/
 │   ├── raw/                 # Bronze: Raw, untouched data
 │   └── processed/           # Silver: Cleaned and split data
 ├── models/                  # Gold: Trained models and artifacts
-├── reports/                 # Gold: Performance metrics and reports
+├── reports/                 # Gold: Performance metrics and drift reports
+├── mlflow/                  # MLflow experiment tracking and artifact storage
+│   ├── runs/               # Experiment run metadata and artifacts
+│   └── artifacts/          # Model artifacts and experiment data
+├── vector_store/           # Vector database storage for similarity search
 ├── src/                     # Python source code
 │   ├── config.py           # Configuration management
 │   ├── utils.py            # Utility functions
 │   ├── download_data.py    # Data download module
 │   ├── data_preprocessing.py # Data preprocessing
 │   ├── feature_engineering.py # Feature engineering
-│   ├── model_training.py   # Model training
-│   ├── evaluation.py       # Model evaluation
-│   └── run_pipeline.py     # Main pipeline script
+│   ├── model_training.py   # Model training with MLflow integration
+│   ├── evaluation.py       # Model evaluation and registration
+│   ├── drift_detection.py  # Data drift monitoring with Evidently
+│   └── run_pipeline.py     # Main pipeline script with drift handling
 ├── tests/                   # Test suite
 │   ├── test_data.py        # Data processing tests
 │   ├── test_feature_engineering.py # Feature engineering tests
@@ -251,12 +335,13 @@ The project uses a structured layout to ensure clarity, reproducibility, and sup
 ├── deploy/                  # Containerization and orchestration
 │   ├── docker/             # Docker build artifacts and configs
 │   └── airflow/            # Airflow DAGs and configuration
-│       ├── dags/           # Airflow DAG definitions
+│       ├── dags/           # Airflow DAG definitions with drift detection
 │       └── logs/           # Airflow execution logs
 ├── config/                  # Configuration files
 │   └── airflow.cfg         # Airflow scheduler settings
 ├── Dockerfile              # Multi-stage container definition
-├── docker-compose.yml      # Airflow orchestration setup
+├── Dockerfile.mlflow       # MLflow service container
+├── docker-compose.yml      # Multi-service orchestration (Airflow + MLflow)
 ├── .dockerignore           # Docker build context optimization
 ├── pyproject.toml          # Project dependencies and metadata
 ├── .pre-commit-config.yaml # Pre-commit hooks configuration
@@ -265,9 +350,11 @@ The project uses a structured layout to ensure clarity, reproducibility, and sup
 
 **Key Design Decisions:**
 
+- **`mlflow/` Directory**: Dedicated storage for MLflow experiment tracking, separating metadata and artifacts from core pipeline data for better organization and backup strategies
+- **Enhanced `reports/` Directory**: Now includes both evaluation metrics and drift detection reports, providing comprehensive model monitoring capabilities
 - **`deploy/` Directory**: Isolating DAGs in `airflow/dags/` ensures modularity, allowing independent testing of workflow tasks without affecting the core ML code
-- **Volume Mounts**: Separate `data/`, `models/`, and `reports/` directories enable persistent storage across container runs
-- **Multi-stage Dockerfile**: Reduces image size and improves security by separating build dependencies from runtime
+- **Volume Mounts**: Separate `data/`, `models/`, `reports/`, and `mlflow/` directories enable persistent storage across container runs while maintaining clear data lineage
+- **Multi-service Architecture**: Separate Dockerfile for MLflow enables independent scaling and updates of experiment tracking infrastructure
 
 ## Pre-commit Configuration
 
@@ -358,47 +445,50 @@ docker run --rm \
 
 ### DAG Structure
 
-The `ml_pipeline_news_classification` DAG orchestrates the complete ML pipeline with the following tasks:
+The `ml_pipeline_news_classification` DAG orchestrates the complete ML pipeline with drift detection and conditional retraining. The DAG implements a branching workflow that automatically handles model drift scenarios:
 
 ```python
-# Task Dependencies (Linear Pipeline)
-validate_environment >> download_data >> preprocess_data >>
-feature_engineering >> train_model >> evaluate_model >> pipeline_success
+# HW3 Task Dependencies with Branching Logic
+preprocess_data >> feature_engineering >> train_model >>
+evaluate_model >> drift_detection >> branch_on_drift >> [retrain_model, pipeline_complete]
 ```
 
 **Task Definitions:**
 
-1. **`validate_environment`**: Verify Python environment and dependencies (BashOperator)
-2. **`download_data`**: Fetch AG News dataset from Hugging Face (PythonOperator)
-3. **`preprocess_data`**: Clean data and create train/test splits (PythonOperator)
-4. **`feature_engineering`**: Create TF-IDF features from text data (PythonOperator)
-5. **`train_model`**: Train Logistic Regression classifier (PythonOperator)
-6. **`evaluate_model`**: Generate performance metrics and reports (PythonOperator)
-7. **`pipeline_success`**: Log results and handle completion (PythonOperator)
+1. **`preprocess_data`**: Download AG News dataset and create train/test splits (PythonOperator)
+2. **`feature_engineering`**: Create TF-IDF features from text data with MLflow logging (PythonOperator)
+3. **`train_model`**: Train Logistic Regression with MLflow experiment tracking (PythonOperator)
+4. **`evaluate_model`**: Generate performance metrics and register model if accuracy > 0.8 (PythonOperator)
+5. **`drift_detection`**: Analyze data drift using Evidently and determine retraining needs (PythonOperator)
+6. **`branch_on_drift`**: BranchPythonOperator that routes to retraining or completion based on drift results
+7. **`retrain_model`**: Conditional task that retrains the model when drift is detected (PythonOperator)
+8. **`pipeline_complete`**: Final task for successful pipeline completion without retraining (PythonOperator)
 
 ### Key Features
 
+- **MLflow Integration**: All model training and evaluation tasks log to MLflow with automatic model registration
+- **Drift Detection**: Evidently AI monitors feature-level drift and triggers retraining when thresholds are exceeded
+- **Conditional Branching**: BranchPythonOperator enables intelligent workflow routing based on drift analysis
 - **XCom Communication**: Tasks pass data paths and results through Airflow's XCom system
-- **Error Handling**: Comprehensive try-catch blocks with detailed logging
+- **Error Handling**: Comprehensive try-catch blocks with detailed logging and MLflow error tracking
 - **Retry Logic**: Automatic retry on failure (2 retries with 5-minute delays)
-- **Idempotency**: Each task can be safely re-run without side effects
-- **Manual Scheduling**: Pipeline runs on-demand rather than scheduled (production can modify this)
+- **Model Registry**: Automatic model registration for models exceeding accuracy thresholds
 
 ### Scheduling Rationale
 
 The DAG uses `schedule_interval=None` for manual triggering because:
 - ML model training should be triggered based on data availability or performance degradation
+- Drift detection requires careful analysis rather than blind retraining on schedules
 - Allows for controlled execution during development and testing
-- Prevents resource waste from unnecessary scheduled runs
-- Easy to modify for production scheduling (daily, weekly, etc.)
+- Easy to modify for production scheduling (daily, weekly, etc.) with drift-aware triggers
 
 ### Monitoring DAGs in Airflow UI
 
-- **Graph View**: Visual representation of task dependencies and execution status
-- **Gantt Chart**: Timeline view showing task execution duration and parallelization
-- **Task Logs**: Detailed logs for each task execution with error traces
-- **XCom Browser**: Inspect data passed between tasks
-- **Task Duration**: Historical performance metrics for optimization
+- **Graph View**: Visual representation of branching logic and task dependencies
+- **Gantt Chart**: Timeline view showing conditional execution paths
+- **Task Logs**: Detailed logs for each task execution with MLflow tracking URLs
+- **XCom Browser**: Inspect drift detection results and model performance data
+- **MLflow Links**: Direct links to experiment tracking and model registry from task logs
 
 ## Reflection
 

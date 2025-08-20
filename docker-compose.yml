@@ -48,15 +48,16 @@ services:
   postgres:
     image: postgres:15.8-alpine
     environment:
-      POSTGRES_USER: mlflow
-      POSTGRES_PASSWORD: mlflow
-      POSTGRES_DB: mlflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     ports:
       - "5432:5432"
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
+      - ./config/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "mlflow"]
+      test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 10s
       retries: 3
       start_period: 5s
@@ -171,7 +172,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      MLFLOW_BACKEND_STORE_URI: postgresql://mlflow:mlflow@postgres:5432/mlflow
+      MLFLOW_BACKEND_STORE_URI: file:///mlflow/runs
       MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlflow/artifacts
     volumes:
       - mlflow-artifacts:/mlflow/artifacts

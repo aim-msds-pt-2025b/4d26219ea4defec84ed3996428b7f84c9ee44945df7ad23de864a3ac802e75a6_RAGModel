@@ -68,8 +68,14 @@ def evaluate_model(model, X_test, y_test):
     if mlflow is not None:
         try:
             mlflow.log_metric("accuracy", float(accuracy))
-        except Exception:
-            pass
+
+            # Try to register model if threshold is met
+            from src.model_training import register_model_if_threshold_met
+
+            register_model_if_threshold_met(float(accuracy))
+
+        except Exception as e:
+            logger.warning(f"MLflow logging failed: {str(e)}")
 
     logger.info("Metrics saved to %s", config.metrics_path)
     return accuracy

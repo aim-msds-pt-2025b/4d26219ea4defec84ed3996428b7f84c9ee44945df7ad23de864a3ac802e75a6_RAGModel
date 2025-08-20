@@ -4,19 +4,21 @@ FROM apache/airflow:2.9.3-python3.12
 # Set working directory
 WORKDIR /opt/airflow
 
-# Switch to root to install additional dependencies
-USER root
+# Copy requirements file first for better caching
+COPY requirements.txt .
 
-# Install uv for fast dependency management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
-# Install additional Python packages for ML pipeline
+# Install ML dependencies using Airflow's recommended approach
 USER airflow
-RUN pip install --no-cache-dir datasets==2.20.0 scikit-learn==1.5.1 pandas==2.2.2
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Switch to root for file operations
 USER root
+
+# Install uv for potential future use
+COPY --from=ghcr.io/astral-sh/uv:0.4.18 /uv /bin/uv
+
+# Copy dependency files for documentation
+COPY pyproject.toml uv.lock ./
 
 # Copy source code
 COPY src/ ./src/

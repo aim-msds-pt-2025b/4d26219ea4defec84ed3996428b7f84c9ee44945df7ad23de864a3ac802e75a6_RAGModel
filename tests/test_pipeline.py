@@ -157,11 +157,16 @@ def test_pipeline_with_logging():
 @pytest.mark.fast
 def test_pipeline_exception_handling():
     """Test pipeline exception handling."""
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
+
+    # Mock MLflow to avoid import issues
+    mock_mlflow = MagicMock()
+    mock_mlflow.set_tracking_uri = MagicMock()
 
     with patch("src.run_pipeline.download_raw_data") as mock_download:
         with patch("src.run_pipeline.setup_logging"):
-            mock_download.side_effect = Exception("Test exception")
+            with patch("src.run_pipeline.mlflow", mock_mlflow):
+                mock_download.side_effect = Exception("Test exception")
 
-            with pytest.raises(Exception, match="Test exception"):
-                main()
+                with pytest.raises(Exception, match="Test exception"):
+                    main()

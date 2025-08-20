@@ -7,6 +7,7 @@ This DAG orchestrates the complete machine learning pipeline including:
 3. Feature engineering with TF-IDF vectorization
 4. Model training using Logistic Regression
 5. Model evaluation and metrics generation
+6. Drift detection and branching logic for retraining
 
 Each task is designed to be idempotent and includes proper error handling
 and logging for production reliability.
@@ -14,16 +15,16 @@ and logging for production reliability.
 
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.utils.dates import days_ago
 import sys
 import logging
 import os
+import json
 
 # Add the project root to Python path for imports
 sys.path.insert(0, os.environ.get("AIRFLOW_PROJECT_ROOT", "/opt/airflow"))
-
 
 # Import ML pipeline modules
 from src.download_data import download_raw_data
@@ -31,7 +32,19 @@ from src.data_preprocessing import preprocess_data
 from src.feature_engineering import feature_engineering
 from src.model_training import train_model
 from src.evaluation import evaluate_model
+from src.drift_detection import detect_drift
 from src.config import config
+
+# MLflow setup
+try:
+    import mlflow
+
+    mlflow.set_tracking_uri("http://mlflow:5000")
+except ImportError:
+    mlflow = None
+
+
+# Import ML pipeline modules
 
 # Configure logging for the DAG
 logging.basicConfig(level=logging.INFO)
@@ -60,57 +73,31 @@ dag = DAG(
 )
 
 
-def download_data_task(**context):
-    """
-    Task to download AG News dataset from Hugging Face.
-
-    Uses PythonOperator with provide_context=True to access task_instance
-    for logging and XCom communication between tasks.
-    """
-    logger.info("Starting data download task")
-    try:
-        # Call the download_raw_data function from src module
-        result = download_raw_data()
-        logger.info("Data download completed successfully: %s", result)
-
-        # Push result to XCom for downstream tasks
-        context["task_instance"].xcom_push(
-            key="raw_data_path", value=config.raw_data_path
-        )
-        return result
-    except Exception as e:
-        logger.error("Data download failed: %s", str(e))
-        raise
-
-
 def preprocess_data_task(**context):
     """
-    Task to preprocess raw data and create train/test splits.
-
-    Retrieves raw data path from upstream task via XCom and outputs
-    paths to processed train/test files for downstream consumption.
+    Task to download data and preprocess raw data to create train/test splits.
+    Combined download + preprocessing for HW3 structure.
     """
-    logger.info("Starting data preprocessing task")
+    logger.info("Starting data download and preprocessing task")
     try:
-        # Get raw data path from upstream task
-        raw_data_path = context["task_instance"].xcom_pull(
-            task_ids="download_data", key="raw_data_path"
-        )
+        # Step 1: Download data
+        raw_data_path = download_raw_data()
+        logger.info(f"Data downloaded to: {raw_data_path}")
 
-        if not raw_data_path:
-            raw_data_path = config.raw_data_path
-
-        logger.info(f"Processing data from: {raw_data_path}")
-
-        # Call preprocessing function
+        # Step 2: Preprocess data (includes drift generation)
         train_path, test_path = preprocess_data(raw_data_path)
         logger.info(f"Preprocessing completed: train={train_path}, test={test_path}")
 
         # Push results to XCom
         context["task_instance"].xcom_push(key="train_path", value=train_path)
         context["task_instance"].xcom_push(key="test_path", value=test_path)
+        context["task_instance"].xcom_push(key="raw_data_path", value=raw_data_path)
 
-        return {"train_path": train_path, "test_path": test_path}
+        return {
+            "train_path": train_path,
+            "test_path": test_path,
+            "raw_data_path": raw_data_path,
+        }
     except Exception as e:
         logger.error(f"Data preprocessing failed: {str(e)}")
         raise
@@ -273,7 +260,117 @@ def evaluate_model_task(**context):
         raise
 
 
-def pipeline_success_notification(**context):
+def drift_detection_task(**context):
+    """
+    Task to detect data drift between reference and current datasets.
+    """
+    logger.info("Starting drift detection task")
+    try:
+        # Run drift detection
+        drift_results = detect_drift("data/processed/test.csv", "data/drifted_test.csv")
+
+        # Save results to file for branching task to read
+        drift_report_path = "reports/drift_report.json"
+        with open(drift_report_path, "w", encoding="utf-8") as f:
+            json.dump(drift_results, f, indent=2)
+
+        logger.info(f"Drift detection completed: {drift_results}")
+
+        # Push to XCom as well
+        context["task_instance"].xcom_push(
+            key="drift_detected", value=drift_results["drift_detected"]
+        )
+        context["task_instance"].xcom_push(
+            key="overall_drift_score", value=drift_results["overall_drift_score"]
+        )
+
+        return drift_results
+    except Exception as e:
+        logger.error(f"Drift detection failed: {str(e)}")
+        raise
+
+
+def branch_on_drift(**context):
+    """
+    Branch task that decides whether to retrain model or complete pipeline.
+    """
+    logger.info("Starting branching decision")
+    try:
+        # Read drift results from file
+        drift_report_path = "reports/drift_report.json"
+        with open(drift_report_path, "r", encoding="utf-8") as f:
+            drift_results = json.load(f)
+
+        drift_detected = drift_results.get("drift_detected", False)
+
+        if drift_detected:
+            logger.info("Drift detected - branching to retrain_model")
+            return "retrain_model"
+        else:
+            logger.info("No drift detected - branching to pipeline_complete")
+            return "pipeline_complete"
+    except Exception as e:
+        logger.error(f"Branching decision failed: {str(e)}")
+        # Default to completion if can't read drift results
+        return "pipeline_complete"
+
+
+def retrain_model_task(**context):
+    """
+    Task to retrain model with original (non-drifted) data.
+    """
+    import joblib
+    import pandas as pd
+
+    logger.info("Starting model retraining due to drift detection")
+    try:
+        # Use original non-drifted data for retraining
+        train_path = config.train_path
+        vectorizer_path = config.vectorizer_path
+
+        # Load training data
+        train_df = pd.read_csv(train_path)
+
+        # Load the fitted vectorizer
+        vectorizer = joblib.load(vectorizer_path)
+
+        # Transform training text to TF-IDF features
+        X_train = vectorizer.transform(train_df["text"])
+        y_train = train_df["label"]
+
+        # Retrain the model
+        train_model(X_train, y_train)
+
+        logger.info("Model retraining completed successfully")
+        return "retraining_complete"
+    except Exception as e:
+        logger.error(f"Model retraining failed: {str(e)}")
+        raise
+
+
+def pipeline_complete_task(**context):
+    """
+    Task to handle successful pipeline completion without retraining.
+    """
+    logger.info("ML Pipeline completed successfully without retraining!")
+
+    # Get results from upstream tasks
+    accuracy = context["task_instance"].xcom_pull(
+        task_ids="evaluate_model", key="accuracy"
+    )
+    drift_detected = context["task_instance"].xcom_pull(
+        task_ids="drift_detection", key="drift_detected"
+    )
+
+    logger.info(f"Final model accuracy: {accuracy}")
+    logger.info(f"Drift detected: {drift_detected}")
+
+    return {
+        "status": "success",
+        "accuracy": accuracy,
+        "drift_detected": drift_detected,
+        "timestamp": datetime.now().isoformat(),
+    }
     """
     Task to handle successful pipeline completion.
 
@@ -303,13 +400,7 @@ def pipeline_success_notification(**context):
 
 
 # Define tasks using PythonOperator
-# Each task wraps a function from the ML pipeline modules
-
-download_task = PythonOperator(
-    task_id="download_data",
-    python_callable=download_data_task,
-    dag=dag,
-)
+# 5 primary tasks as required by HW3
 
 preprocess_task = PythonOperator(
     task_id="preprocess_data",
@@ -335,10 +426,29 @@ evaluate_task = PythonOperator(
     dag=dag,
 )
 
-success_task = PythonOperator(
-    task_id="pipeline_success",
-    python_callable=pipeline_success_notification,
-    provide_context=True,
+drift_detection_task_op = PythonOperator(
+    task_id="drift_detection",
+    python_callable=drift_detection_task,
+    dag=dag,
+)
+
+# Branching task
+branch_task = BranchPythonOperator(
+    task_id="branch_on_drift",
+    python_callable=branch_on_drift,
+    dag=dag,
+)
+
+# End tasks
+retrain_task = PythonOperator(
+    task_id="retrain_model",
+    python_callable=retrain_model_task,
+    dag=dag,
+)
+
+complete_task = PythonOperator(
+    task_id="pipeline_complete",
+    python_callable=pipeline_complete_task,
     dag=dag,
 )
 
@@ -360,17 +470,20 @@ print('Environment validation completed')
     dag=dag,
 )
 
-# Define task dependencies using bit-shift operators
-# This creates a linear pipeline with proper data flow
+# Define task dependencies for HW3 branching structure
+# preprocess_data >> feature_engineering >> train_model >> evaluate_model >> drift_detection >> branch_on_drift >> [retrain_model, pipeline_complete]
+
 task_dependencies = (
-    validate_environment
-    >> download_task
-    >> preprocess_task
+    preprocess_task
     >> feature_engineering_task_op
     >> train_task
     >> evaluate_task
-    >> success_task
+    >> drift_detection_task_op
+    >> branch_task
 )
+
+# Branching dependencies
+branch_task >> [retrain_task, complete_task]
 
 # Alternative dependency definition using set_upstream/set_downstream:
 # download_task.set_upstream(validate_environment)
@@ -382,29 +495,30 @@ task_dependencies = (
 
 # DAG documentation for Airflow UI
 dag.doc_md = """
-## ML Pipeline DAG for News Topic Classification
+## ML Pipeline DAG for News Topic Classification with Drift Detection
 
 This DAG implements a complete machine learning pipeline for classifying news articles
-into four categories: World, Sports, Business, and Sci/Tech.
+into four categories: World, Sports, Business, and Sci/Tech, with data drift detection and branching logic.
 
 ### Pipeline Steps:
-1. **Environment Validation**: Verify Python environment and dependencies
-2. **Data Download**: Fetch AG News dataset from Hugging Face
-3. **Data Preprocessing**: Clean data and create train/test splits
-4. **Feature Engineering**: Create TF-IDF features from text data
-5. **Model Training**: Train Logistic Regression classifier
-6. **Model Evaluation**: Generate performance metrics and reports
-7. **Pipeline Success**: Log results and handle completion
+1. **Data Preprocessing**: Clean data and create train/test splits (generates drifted datasets)
+2. **Feature Engineering**: Create TF-IDF features from text data
+3. **Model Training**: Train Logistic Regression classifier with MLflow tracking
+4. **Model Evaluation**: Generate performance metrics and model registration
+5. **Drift Detection**: Analyze data drift using Evidently
+6. **Branching**: Decide whether to retrain or complete based on drift detection
+7. **Retrain Model**: Retrain with original data if drift detected
+8. **Pipeline Complete**: Completion task if no drift detected
 
 ### Key Features:
-- **Idempotent Tasks**: Each task can be safely re-run
+- **MLflow Integration**: Experiment tracking and model registration
+- **Drift Detection**: Automated data drift analysis with Evidently
+- **Branching Logic**: Conditional retraining based on drift detection
 - **Error Handling**: Comprehensive error handling with retries
 - **XCom Communication**: Tasks pass data through Airflow's XCom system
-- **Logging**: Detailed logging for debugging and monitoring
-- **Manual Trigger**: Pipeline runs on-demand rather than scheduled
 
 ### Monitoring:
-- Check task logs in Airflow UI for detailed execution information
-- Monitor XCom values to track data flow between tasks
-- Use Gantt chart view to analyze task execution times
+- MLflow UI available at http://mlflow:5000
+- Check reports/drift_report.json for drift analysis results
+- Monitor task logs for detailed execution information
 """
