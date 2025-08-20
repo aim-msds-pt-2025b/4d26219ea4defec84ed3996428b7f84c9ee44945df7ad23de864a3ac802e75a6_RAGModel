@@ -5,17 +5,23 @@ This simulates the scenario where no drift is detected and model registration sh
 """
 
 import logging
+import os
 import sys
 
+# Add project root to path before importing local modules
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-import mlflow
-from src.download_data import download_data
-from src.data_preprocessing import preprocess_data
-from src.feature_engineering import engineer_features
-from src.model_training import train_model
-from src.evaluation import evaluate_model
-from src.drift_detection import detect_drift
-from src.utils import setup_logging
+import mlflow  # noqa: E402
+
+from src.data_preprocessing import preprocess_data  # noqa: E402
+from src.drift_detection import detect_drift  # noqa: E402
+from src.download_data import download_raw_data  # noqa: E402
+from src.evaluation import evaluate_model  # noqa: E402
+from src.feature_engineering import feature_engineering  # noqa: E402
+from src.model_training import train_model  # noqa: E402
+from src.utils import setup_logging  # noqa: E402
 
 
 def main():
@@ -32,15 +38,17 @@ def main():
 
         # Step 1: Download data
         logger.info("Step 1: Downloading raw data...")
-        download_data()
+        download_raw_data()
 
         # Step 2: Preprocessing (without drift simulation)
         logger.info("Step 2: Preprocessing data (healthy scenario)...")
-        X_train, X_test, y_train, y_test = preprocess_data(simulate_drift=False)
+        train_path, test_path = preprocess_data("data/raw/ag_news_raw.csv")
 
         # Step 3: Feature engineering
         logger.info("Step 3: Feature engineering...")
-        X_train_tfidf, X_test_tfidf = engineer_features(X_train, X_test)
+        X_train_tfidf, X_test_tfidf, y_train, y_test = feature_engineering(
+            train_path, test_path
+        )
 
         # Step 4: Model training
         logger.info("Step 4: Training model...")
@@ -48,7 +56,7 @@ def main():
 
         # Step 5: Model evaluation
         logger.info("Step 5: Evaluating model...")
-        accuracy, f1_score = evaluate_model(model, X_test_tfidf, y_test)
+        accuracy = evaluate_model(model, X_test_tfidf, y_test)
 
         # Step 6: Drift detection on healthy data
         logger.info("Step 6: Drift detection (healthy data)...")
@@ -63,9 +71,7 @@ def main():
         if not drift_results.get("drift_detected", False):
             logger.info("✅ Healthy scenario: No drift detected as expected!")
             logger.info("✅ Pipeline completed successfully!")
-            logger.info(
-                f"✅ Model registered with accuracy: {accuracy:.4f}, F1-score: {f1_score:.4f}"
-            )
+            logger.info(f"✅ Model registered with accuracy: {accuracy:.4f}")
         else:
             logger.warning("⚠️ Unexpected drift detected in healthy scenario")
 
